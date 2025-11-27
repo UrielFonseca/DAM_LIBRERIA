@@ -1,5 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:firebase_auth/firebase_auth.dart';
+import 'package:sqlite/UsuariosPantallas/mapa_librerias.dart';
+
 
 class PantallaUsuario extends StatelessWidget {
   const PantallaUsuario({super.key});
@@ -38,9 +40,11 @@ class PantallaUsuario extends StatelessWidget {
             ),
 
             ListTile(
-              leading: const Icon(Icons.person),
-              title: const Text("Mi Perfil"),
-              onTap: () {},
+              leading: const Icon(Icons.map),
+              title: const Text("Ver Librerías en el Mapa"),
+              onTap: () {
+                Navigator.pushNamed(context, '/mapa_librerias');
+              },
             ),
 
             const Divider(),

@@ -26,6 +26,7 @@ class MyApp extends StatelessWidget {
         '/': (_) => const LoginPage(),
         '/admin': (_) => const PantallaAdmin(),
         '/usuario': (_) => const PantallaUsuario(),
+        '/mapa_librerias': (context) => const MapaLibrerias(),
       },
     );
   }
