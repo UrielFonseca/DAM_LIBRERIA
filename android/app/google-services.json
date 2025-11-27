@@ -1,0 +1,29 @@
+{
+  "project_info": {
+    "project_number": "813712350390",
+    "project_id": "login-70649",
+    "storage_bucket": "login-70649.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:813712350390:android:23bd3f057c0e96cabc1a17",
+        "android_client_info": {
+          "package_name": "com.example.sqlite"
+        }
+      },
+      "oauth_client": [],
+      "api_key": [
+        {
+          "current_key": "AIzaSyDsNSUJvXRU5OXl3I0vg7Cn7-9mRG25tyg"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": []
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}
