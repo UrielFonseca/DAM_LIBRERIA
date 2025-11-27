@@ -1,7 +1,12 @@
 import 'package:flutter/material.dart';
+import 'package:firebase_auth/firebase_auth.dart'; // Para obtener el ID del usuario actual
+import '../database/UsuariosBD.dart'; // Importamos tu base de datos
+import '../models/ModeloLibro.dart';  // Importamos el modelo base
+import '../models/ModeloReserva.dart'; // Para crear objetos de reserva
 
-// Modelo auxiliar para la vista
+// Modelo auxiliar para la vista (Mantenemos este para facilitar la UI)
 class LibroVista {
+  final String id; // Necesitamos el ID para la BD
   final String titulo;
   final String autor;
   final String imagen;
@@ -12,6 +17,7 @@ class LibroVista {
   final bool esPopular;
 
   LibroVista({
+    required this.id,
     required this.titulo,
     required this.autor,
     required this.imagen,
@@ -36,77 +42,83 @@ class _TabLibrosState extends State<TabLibros> {
   String _generoSeleccionado = "Todos";
   final List<String> _generos = ["Todos", "Fantasía", "Ciencia Ficción", "Terror", "Romance", "Educativo", "Aventura", "Historia"];
 
-  // DATOS DE PRUEBA
-  final List<LibroVista> _todosLosLibros = [
-    LibroVista(
-      titulo: "El Principito",
-      autor: "Antoine de Saint-Exupéry",
-      imagen: "https://m.media-amazon.com/images/I/71aFt4+OTOL.jpg",
-      genero: "Fantasía",
-      nombreLibreria: "Biblioteca Central",
-      stock: 3,
-      descripcion: "Historia sobre un pequeño príncipe...",
-      esPopular: true,
-    ),
-    LibroVista(
-      titulo: "El Principito",
-      autor: "Antoine de Saint-Exupéry",
-      imagen: "https://m.media-amazon.com/images/I/71aFt4+OTOL.jpg",
-      genero: "Fantasía",
-      nombreLibreria: "Biblioteca Sur",
-      stock: 10,
-      descripcion: "Historia sobre un pequeño príncipe (Edición Sur)...",
-      esPopular: false,
-    ),
-    LibroVista(
-      titulo: "Cien Años de Soledad",
-      autor: "Gabriel García Márquez",
-      imagen: "https://images.penguinrandomhouse.com/cover/9780307474728",
-      genero: "Fantasía",
-      nombreLibreria: "Biblioteca Norte",
-      stock: 0,
-      descripcion: "La historia de la familia Buendía...",
-      esPopular: true,
-    ),
-    LibroVista(
-      titulo: "It",
-      autor: "Stephen King",
-      imagen: "https://m.media-amazon.com/images/I/71qZ+K+pXSL._AC_UF1000,1000_QL80_.jpg",
-      genero: "Terror",
-      nombreLibreria: "Biblioteca Central",
-      stock: 5,
-      descripcion: "Un payaso aterroriza a los niños...",
-      esPopular: true,
-    ),
-    LibroVista(
-      titulo: "1984",
-      autor: "George Orwell",
-      imagen: "https://m.media-amazon.com/images/I/71kxa1-0mfL.jpg",
-      genero: "Ciencia Ficción",
-      nombreLibreria: "Biblioteca Este",
-      stock: 2,
-      descripcion: "Una distopía totalitaria...",
-      esPopular: true,
-    ),
-    LibroVista(
-      titulo: "Dune",
-      autor: "Frank Herbert",
-      imagen: "https://m.media-amazon.com/images/I/41jM5F6rGRL._AC_SY445_SX342_.jpg",
-      genero: "Ciencia Ficción",
-      nombreLibreria: "Biblioteca Central",
-      stock: 8,
-      descripcion: "La lucha por el planeta Arrakis...",
-      esPopular: false,
-    ),
-  ];
-
+  // Lista dinámica que vendrá de la BD
+  List<LibroVista> _todosLosLibros = [];
   List<LibroVista> _librosFiltrados = [];
+  bool _isLoading = true;
 
   @override
   void initState() {
     super.initState();
-    _librosFiltrados = _todosLosLibros;
+    _cargarDatos();
     _searchController.addListener(_filtrarLibros);
+  }
+
+  // Carga datos desde SQLite y siembra datos si está vacía
+  Future<void> _cargarDatos() async {
+    setState(() => _isLoading = true);
+
+    // 1. Obtener libros de la BD
+    var librosMap = await UsuariosBD.obtenerLibros();
+
+    // 2. Si la BD está vacía, insertamos datos de prueba (Seed)
+    if (librosMap.isEmpty) {
+      await _insertarDatosPrueba();
+      librosMap = await UsuariosBD.obtenerLibros(); // Recargar
+    }
+
+    // 3. Convertir Mapas de BD a objetos LibroVista
+    List<LibroVista> tempLibros = librosMap.map((map) {
+      // Determinamos si es popular arbitrariamente o por lógica (ej. stock bajo = popular)
+      bool esPop = (map['existencias'] as int) < 5;
+
+      return LibroVista(
+        id: map['id'],
+        titulo: map['nombre'],
+        autor: map['autor'],
+        imagen: map['imagen'],
+        genero: map['genero'],
+        nombreLibreria: map['idLibreria'], // Aquí usaremos el ID como nombre por ahora
+        stock: map['existencias'],
+        descripcion: map['descripcion'],
+        esPopular: esPop,
+      );
+    }).toList();
+
+    if (mounted) {
+      setState(() {
+        _todosLosLibros = tempLibros;
+        _librosFiltrados = tempLibros;
+        _isLoading = false;
+        _filtrarLibros(); // Aplicar filtros iniciales si los hay
+      });
+    }
+  }
+
+  Future<void> _insertarDatosPrueba() async {
+    // Lista de libros iniciales
+    List<Map<String, dynamic>> datos = [
+      {
+        'libro': Libro(id: 'l1', nombre: 'El Principito', descripcion: 'Historia sobre un pequeño príncipe...', autor: 'Antoine de Saint-Exupéry', imagen: 'https://m.media-amazon.com/images/I/71aFt4+OTOL.jpg', genero: 'Fantasía', existencias: 3),
+        'libreria': 'Biblioteca Central'
+      },
+      {
+        'libro': Libro(id: 'l2', nombre: 'El Principito', descripcion: 'Historia sobre un pequeño príncipe...', autor: 'Antoine de Saint-Exupéry', imagen: 'https://m.media-amazon.com/images/I/71aFt4+OTOL.jpg', genero: 'Fantasía', existencias: 10),
+        'libreria': 'Biblioteca Sur'
+      },
+      {
+        'libro': Libro(id: 'l3', nombre: 'Cien Años de Soledad', descripcion: 'La historia de la familia Buendía...', autor: 'Gabriel García Márquez', imagen: 'https://images.penguinrandomhouse.com/cover/9780307474728', genero: 'Fantasía', existencias: 0),
+        'libreria': 'Biblioteca Norte'
+      },
+      {
+        'libro': Libro(id: 'l4', nombre: 'It', descripcion: 'Un payaso aterroriza a los niños...', autor: 'Stephen King', imagen: 'https://m.media-amazon.com/images/I/71qZ+K+pXSL._AC_UF1000,1000_QL80_.jpg', genero: 'Terror', existencias: 5),
+        'libreria': 'Biblioteca Central'
+      },
+    ];
+
+    for (var d in datos) {
+      await UsuariosBD.insertarLibro(d['libro'] as Libro, d['libreria'] as String);
+    }
   }
 
   void _filtrarLibros() {
@@ -120,11 +132,58 @@ class _TabLibrosState extends State<TabLibros> {
     });
   }
 
+  // Lógica para PROCESAR LA RESERVA o LISTA DE ESPERA
+  Future<void> _procesarAccion(LibroVista libro) async {
+    final user = FirebaseAuth.instance.currentUser;
+    if (user == null) {
+      ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text("Error: Usuario no identificado")));
+      return;
+    }
+
+    // 1. Si hay Stock -> RESERVAR
+    if (libro.stock > 0) {
+      // Crear objeto reserva
+      final nuevaReserva = Reserva(
+        id: DateTime.now().millisecondsSinceEpoch.toString(),
+        idUsuario: user.uid,
+        idLibro: libro.id,
+        idLibreria: libro.nombreLibreria,
+        fecha: DateTime.now(),
+      );
+
+      // Guardar reserva
+      await UsuariosBD.insertarReserva(nuevaReserva);
+
+      // Actualizar Stock (Resta 1)
+      await UsuariosBD.actualizarStock(libro.id, libro.stock - 1);
+
+      if (mounted) {
+        Navigator.pop(context); // Cerrar modal
+        ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text("¡Libro reservado! Recógelo en: ${libro.nombreLibreria}")));
+        _cargarDatos(); // Recargar vista para ver nuevo stock
+      }
+    }
+    // 2. Si NO hay Stock -> LISTA DE ESPERA
+    else {
+      await UsuariosBD.pushPila(
+          idUsuario: user.uid,
+          idLibro: libro.id,
+          idLibreria: libro.nombreLibreria
+      );
+
+      if (mounted) {
+        Navigator.pop(context);
+        ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text("Te has unido a la fila de espera exitosamente.")));
+        // No hace falta recargar stock, pero sí confirmación visual
+      }
+    }
+  }
+
   void _mostrarDetalleLibro(BuildContext context, LibroVista libro) {
     showModalBottomSheet(
       context: context,
       isScrollControlled: true,
-      backgroundColor: Colors.transparent, // Para bordes redondeados limpios
+      backgroundColor: Colors.transparent,
       builder: (context) {
         return Container(
           decoration: const BoxDecoration(
@@ -132,11 +191,10 @@ class _TabLibrosState extends State<TabLibros> {
             borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
           ),
           padding: const EdgeInsets.only(top: 20, left: 20, right: 20, bottom: 20),
-          height: MediaQuery.of(context).size.height * 0.85, // Ocupa 85% pantalla
+          height: MediaQuery.of(context).size.height * 0.85,
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              // Barra superior del modal (Drag handle)
               Center(
                 child: Container(
                   height: 5, width: 50,
@@ -148,7 +206,6 @@ class _TabLibrosState extends State<TabLibros> {
               Expanded(
                 child: ListView(
                   children: [
-                    // Imagen y Título
                     Row(
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
@@ -175,16 +232,13 @@ class _TabLibrosState extends State<TabLibros> {
                       ],
                     ),
                     const SizedBox(height: 20),
-
                     const Text("Sinopsis", style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold)),
                     const SizedBox(height: 10),
                     Text(libro.descripcion, style: const TextStyle(fontSize: 14, height: 1.5, color: Colors.black87)),
-                    const SizedBox(height: 30),
                   ],
                 ),
               ),
 
-              // Botón de acción fijo abajo
               Container(
                 padding: const EdgeInsets.all(15),
                 decoration: BoxDecoration(
@@ -204,12 +258,7 @@ class _TabLibrosState extends State<TabLibros> {
                       ],
                     ),
                     ElevatedButton(
-                      onPressed: () {
-                        Navigator.pop(context);
-                        ScaffoldMessenger.of(context).showSnackBar(
-                          SnackBar(content: Text(libro.stock > 0 ? "Reservando..." : "Uniéndose a fila...")),
-                        );
-                      },
+                      onPressed: () => _procesarAccion(libro),
                       style: ElevatedButton.styleFrom(
                         backgroundColor: libro.stock > 0 ? Colors.green : Colors.orange,
                         padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 12),
@@ -232,12 +281,17 @@ class _TabLibrosState extends State<TabLibros> {
 
   @override
   Widget build(BuildContext context) {
+    // Si está cargando, mostramos spinner
+    if (_isLoading) {
+      return const Center(child: CircularProgressIndicator());
+    }
+
     final populares = _todosLosLibros.where((l) => l.esPopular).toList();
     final mostrarPopulares = _generoSeleccionado == "Todos" && _searchController.text.isEmpty;
 
     return CustomScrollView(
       slivers: [
-        // 1. BUSCADOR Y FILTRO (No fijos, scrollean con la pagina)
+        // 1. BUSCADOR Y FILTROS
         SliverToBoxAdapter(
           child: Padding(
             padding: const EdgeInsets.fromLTRB(16, 16, 16, 0),
@@ -251,22 +305,16 @@ class _TabLibrosState extends State<TabLibros> {
                       prefixIcon: const Icon(Icons.search, color: Colors.grey),
                       filled: true,
                       fillColor: Colors.grey[100],
-                      border: OutlineInputBorder(
-                        borderRadius: BorderRadius.circular(15),
-                        borderSide: BorderSide.none,
-                      ),
+                      border: OutlineInputBorder(borderRadius: BorderRadius.circular(15), borderSide: BorderSide.none),
                       contentPadding: const EdgeInsets.symmetric(horizontal: 20),
                     ),
                   ),
                 ),
                 const SizedBox(width: 10),
                 Container(
-                  decoration: BoxDecoration(
-                    color: Colors.blue[50],
-                    borderRadius: BorderRadius.circular(15),
-                  ),
+                  decoration: BoxDecoration(color: Colors.blue[50], borderRadius: BorderRadius.circular(15)),
                   child: PopupMenuButton<String>(
-                    icon: const Icon(Icons.tune, color: Colors.blue), // Icono de filtros
+                    icon: const Icon(Icons.tune, color: Colors.blue),
                     onSelected: (String genero) {
                       setState(() {
                         _generoSeleccionado = genero;
@@ -279,15 +327,9 @@ class _TabLibrosState extends State<TabLibros> {
                           value: choice,
                           child: Row(
                             children: [
-                              Icon(
-                                choice == _generoSeleccionado ? Icons.check_circle : Icons.circle_outlined,
-                                color: choice == _generoSeleccionado ? Colors.blue : Colors.grey,
-                                size: 20,
-                              ),
+                              Icon(choice == _generoSeleccionado ? Icons.check_circle : Icons.circle_outlined, color: choice == _generoSeleccionado ? Colors.blue : Colors.grey, size: 20),
                               const SizedBox(width: 10),
-                              Text(choice, style: TextStyle(
-                                  fontWeight: choice == _generoSeleccionado ? FontWeight.bold : FontWeight.normal
-                              )),
+                              Text(choice, style: TextStyle(fontWeight: choice == _generoSeleccionado ? FontWeight.bold : FontWeight.normal)),
                             ],
                           ),
                         );
@@ -300,8 +342,8 @@ class _TabLibrosState extends State<TabLibros> {
           ),
         ),
 
-        // 2. TÍTULO Y CARRUSEL POPULARES (Solo visible si no hay filtros activos)
-        if (mostrarPopulares) ...[
+        // 2. CARRUSEL DE POPULARES
+        if (mostrarPopulares && populares.isNotEmpty) ...[
           SliverToBoxAdapter(
             child: Padding(
               padding: const EdgeInsets.fromLTRB(16, 20, 16, 10),
@@ -316,7 +358,7 @@ class _TabLibrosState extends State<TabLibros> {
           ),
           SliverToBoxAdapter(
             child: SizedBox(
-              height: 200, // Altura del carrusel
+              height: 200,
               child: ListView.builder(
                 scrollDirection: Axis.horizontal,
                 padding: const EdgeInsets.symmetric(horizontal: 16),
@@ -339,16 +381,13 @@ class _TabLibrosState extends State<TabLibros> {
                               ),
                               child: ClipRRect(
                                 borderRadius: BorderRadius.circular(12),
-                                child: Image.network(libro.imagen, fit: BoxFit.cover, width: double.infinity,
-                                    errorBuilder: (c,o,s) => Container(color: Colors.grey[300], child: const Icon(Icons.broken_image))),
+                                child: Image.network(libro.imagen, fit: BoxFit.cover, width: double.infinity, errorBuilder: (c,o,s) => Container(color: Colors.grey[300])),
                               ),
                             ),
                           ),
                           const SizedBox(height: 8),
-                          Text(libro.titulo, maxLines: 1, overflow: TextOverflow.ellipsis,
-                              style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 13)),
-                          Text(libro.nombreLibreria, maxLines: 1, overflow: TextOverflow.ellipsis,
-                              style: TextStyle(fontSize: 11, color: Colors.grey[600])),
+                          Text(libro.titulo, maxLines: 1, overflow: TextOverflow.ellipsis, style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 13)),
+                          Text(libro.nombreLibreria, maxLines: 1, overflow: TextOverflow.ellipsis, style: TextStyle(fontSize: 11, color: Colors.grey[600])),
                         ],
                       ),
                     ),
@@ -359,36 +398,25 @@ class _TabLibrosState extends State<TabLibros> {
           ),
         ],
 
-        // 3. TÍTULO GRID EXPLORAR
+        // 3. RESULTADOS GRID
         SliverToBoxAdapter(
           child: Padding(
             padding: const EdgeInsets.fromLTRB(16, 25, 16, 10),
             child: Text(
-              mostrarPopulares ? "Explorar Catálogo" : "Resultados de búsqueda (${_librosFiltrados.length})",
+              mostrarPopulares ? "Explorar Catálogo" : "Resultados (${_librosFiltrados.length})",
               style: const TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
             ),
           ),
         ),
 
-        // 4. GRID DE RESULTADOS (Scroll infinito o lista completa)
         SliverPadding(
           padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
           sliver: _librosFiltrados.isEmpty
-              ? SliverToBoxAdapter(
-            child: Center(
-              child: Column(
-                children: const [
-                  SizedBox(height: 50),
-                  Icon(Icons.search_off, size: 50, color: Colors.grey),
-                  Text("No se encontraron libros"),
-                ],
-              ),
-            ),
-          )
+              ? SliverToBoxAdapter(child: Center(child: Padding(padding: const EdgeInsets.only(top: 50), child: Text("No hay libros disponibles"))))
               : SliverGrid(
             gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
               crossAxisCount: 2,
-              childAspectRatio: 0.65, // Ajusta la altura de las tarjetas
+              childAspectRatio: 0.65,
               crossAxisSpacing: 15,
               mainAxisSpacing: 15,
             ),
@@ -401,14 +429,11 @@ class _TabLibrosState extends State<TabLibros> {
                     decoration: BoxDecoration(
                       color: Colors.white,
                       borderRadius: BorderRadius.circular(15),
-                      boxShadow: [
-                        BoxShadow(color: Colors.grey.withOpacity(0.15), blurRadius: 6, offset: const Offset(0, 4))
-                      ],
+                      boxShadow: [BoxShadow(color: Colors.grey.withOpacity(0.15), blurRadius: 6, offset: const Offset(0, 4))],
                     ),
                     child: Column(
                       crossAxisAlignment: CrossAxisAlignment.stretch,
                       children: [
-                        // IMAGEN
                         Expanded(
                           flex: 4,
                           child: Stack(
@@ -416,10 +441,8 @@ class _TabLibrosState extends State<TabLibros> {
                             children: [
                               ClipRRect(
                                 borderRadius: const BorderRadius.vertical(top: Radius.circular(15)),
-                                child: Image.network(libro.imagen, fit: BoxFit.cover,
-                                    errorBuilder: (c,o,s) => Container(color: Colors.grey[200])),
+                                child: Image.network(libro.imagen, fit: BoxFit.cover, errorBuilder: (c,o,s) => Container(color: Colors.grey[200])),
                               ),
-                              // Badge de Agotado
                               if (libro.stock == 0)
                                 Positioned(
                                   top: 8, right: 8,
@@ -432,7 +455,6 @@ class _TabLibrosState extends State<TabLibros> {
                             ],
                           ),
                         ),
-                        // INFO
                         Expanded(
                           flex: 2,
                           child: Padding(
@@ -444,8 +466,7 @@ class _TabLibrosState extends State<TabLibros> {
                                 Column(
                                   crossAxisAlignment: CrossAxisAlignment.start,
                                   children: [
-                                    Text(libro.titulo, maxLines: 2, overflow: TextOverflow.ellipsis,
-                                        style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 14, height: 1.1)),
+                                    Text(libro.titulo, maxLines: 2, overflow: TextOverflow.ellipsis, style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 14, height: 1.1)),
                                     const SizedBox(height: 4),
                                     Text(libro.genero, style: TextStyle(fontSize: 11, color: Colors.blue[700], fontWeight: FontWeight.w500)),
                                   ],
@@ -455,8 +476,7 @@ class _TabLibrosState extends State<TabLibros> {
                                     Icon(Icons.store, size: 12, color: Colors.grey[500]),
                                     const SizedBox(width: 4),
                                     Expanded(
-                                      child: Text(libro.nombreLibreria, maxLines: 1, overflow: TextOverflow.ellipsis,
-                                          style: TextStyle(fontSize: 11, color: Colors.grey[600])),
+                                      child: Text(libro.nombreLibreria, maxLines: 1, overflow: TextOverflow.ellipsis, style: TextStyle(fontSize: 11, color: Colors.grey[600])),
                                     ),
                                   ],
                                 )
@@ -473,8 +493,6 @@ class _TabLibrosState extends State<TabLibros> {
             ),
           ),
         ),
-
-        // Espacio extra al final para que no se corte con bordes de pantalla
         const SliverToBoxAdapter(child: SizedBox(height: 30)),
       ],
     );
