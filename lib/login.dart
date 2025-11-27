@@ -45,12 +45,12 @@ class _LoginPageState extends State<LoginPage> {
       });
 
       setState(() {
-        mensaje = "✅ Usuario registrado.";
+        mensaje = " Usuario registrado.";
         isLogin = true;
       });
     } catch (e) {
       setState(() {
-        mensaje = "❌ Error: $e";
+        mensaje = " Error: $e";
       });
     }
   }
