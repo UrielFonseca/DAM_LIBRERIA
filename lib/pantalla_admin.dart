@@ -224,6 +224,8 @@ class VistaLibros extends StatelessWidget {
                       'descripcion': descCtrl.text,
                       'imagen': imgCtrl.text,
                       'idLibreria': idLibreriaSel ?? '',
+                      "reservas": [], // <-- Este es el que necesitas
+
                     };
                     if (libro == null) {
                       FirebaseFirestore.instance.collection('libros').add(data);
