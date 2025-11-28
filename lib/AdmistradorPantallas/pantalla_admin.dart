@@ -256,7 +256,8 @@ class VistaLibros extends StatelessWidget {
               final data = libro.data() as Map<String, dynamic>;
               return ListTile(
                   leading: data['imagen'] != null && data['imagen'].toString().isNotEmpty
-                      ? Image.network(data['imagen'], width: 40, errorBuilder: (,,)=>const Icon(Icons.book))
+                      ? Image.network(data['imagen'], width: 40, errorBuilder: (context, error, stackTrace) => const Icon(Icons.book)
+                  )
                   : const Icon(Icons.book),
               title: Text(data['nombre'] ?? 'Sin título'),
               subtitle: Text("${data['autor']} - Stock: ${data['existencias']}"),
