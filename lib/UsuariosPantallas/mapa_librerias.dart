@@ -1,7 +1,9 @@
-/*import 'dart:math';
-
+import 'dart:math';
 import 'package:flutter/material.dart';
-import 'package:google_maps_flutter/google_maps_flutter.dart';
+// 🛑 IMPORTACIONES DE FLUTTER_MAP Y LATLONG2
+import 'package:flutter_map/flutter_map.dart';
+import 'package:latlong2/latlong.dart';
+
 import 'package:location/location.dart';
 import 'package:url_launcher/url_launcher.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
@@ -15,12 +17,17 @@ class MapaLibrerias extends StatefulWidget {
 }
 
 class _MapaLibreriasState extends State<MapaLibrerias> {
-  GoogleMapController? mapaController;
+  // 🛑 USAMOS MapController DE flutter_map
+  final MapController mapaController = MapController();
+  final double _proximityThresholdMeters = 1000000.0;
+
   Location location = Location();
   LatLng? ubicacionActual;
 
-  Map<MarkerId, Marker> marcadores = {};
+  // 🛑 USAMOS LIST<MARKER> DE flutter_map
+  List<Marker> marcadores = [];
   LatLng? libreriaSeleccionada;
+  bool _mapaListo = false; // Bandera para saber si el mapa ha cargado
 
   final FlutterLocalNotificationsPlugin notifications =
   FlutterLocalNotificationsPlugin();
@@ -32,6 +39,10 @@ class _MapaLibreriasState extends State<MapaLibrerias> {
     obtenerUbicacionActual();
     cargarLibreriasFirestore();
   }
+
+  // ------------------------------------
+  // Notificaciones y Ubicación
+  // ------------------------------------
 
   Future<void> configurarNotificaciones() async {
     const settings = InitializationSettings(
@@ -57,9 +68,16 @@ class _MapaLibreriasState extends State<MapaLibrerias> {
     );
   }
 
+  // 🛑 CORRECCIÓN: Eliminamos la verificación de 'mapaController.ready' aquí
   Future<void> obtenerUbicacionActual() async {
     LocationData data = await location.getLocation();
+    // 🛑 Usamos LatLng de latlong2
     ubicacionActual = LatLng(data.latitude!, data.longitude!);
+
+    // Movemos el mapa si ya está listo
+    if (_mapaListo) {
+      mapaController.move(ubicacionActual!, 14);
+    }
 
     setState(() {});
     escucharMovimientos();
@@ -77,80 +95,181 @@ class _MapaLibreriasState extends State<MapaLibrerias> {
           libreriaSeleccionada!.longitude,
         );
 
-        if (distancia < 50) {
+        if (distancia < _proximityThresholdMeters) {
+          print("🔥🔥 NOTIFICACION ENVIADA - Distancia: $distancia"); // <-- Buscar esto
           mostrarNotificacion();
         }
       }
+
+      // 🛑 CORRECCIÓN: Reemplazamos 'mapaController.ready' por la bandera '_mapaListo'
+      if (_mapaListo && ubicacionActual != null) {
+        // Mover el mapa para seguir al usuario
+        mapaController.move(ubicacionActual!, mapaController.camera.zoom);
+      }
+      setState(() {}); // Es bueno hacer un setState para actualizar la posición del círculo del usuario
     });
   }
 
+  // Fórmula de Haversine para la distancia
   double calcularDistancia(double lat1, lng1, lat2, lng2) {
-    const R = 6371000;
-    double dLat = (lat2 - lat1) * (3.1415 / 180);
-    double dLng = (lng2 - lng1) * (3.1415 / 180);
+    const R = 6371000.0;
+    double dLat = (lat2 - lat1) * (pi / 180);
+    double dLng = (lng2 - lng1) * (pi / 180);
     double a =
-        0.5 -
-            (cos(lat2 * (3.1415 / 180)) *
-                cos(lat1 * (3.1415 / 180)) *
-                (1 - cos(dLng))) /
-                2;
-    return R * 2 * asin(sqrt(a));
+        sin(dLat / 2) * sin(dLat / 2) +
+            cos(lat1 * (pi / 180)) *
+                cos(lat2 * (pi / 180)) *
+                sin(dLng / 2) *
+                sin(dLng / 2);
+    double c = 2 * atan2(sqrt(a), sqrt(1 - a));
+    return R * c;
   }
+
+  // ------------------------------------
+// Carga de Librerías y Marcadores (CORREGIDA PARA CAMPO 'Cordenadas')
+// ------------------------------------
 
   Future<void> cargarLibreriasFirestore() async {
     final data = await FirebaseFirestore.instance.collection('librerias').get();
 
+    List<Marker> nuevosMarcadores = [];
+
     for (var doc in data.docs) {
-      final lat = doc['lat'];
-      final lng = doc['lng'];
+      // 🛑 CORRECCIÓN: Usamos el nombre del campo exacto: 'Cordenadas'
+      final GeoPoint? geoPoint = doc['Cordenadas'] as GeoPoint?;
       final nombre = doc['nombre'];
 
-      final markerId = MarkerId(doc.id);
+      // Si el GeoPoint es nulo
+      if (geoPoint == null) {
+        print('🚨 WARNING: La librería "${nombre ?? doc.id}" no tiene GeoPoint en el campo Cordenadas.');
+        continue;
+      }
+
+      // Leemos las propiedades 'latitude' y 'longitude' del GeoPoint
+      final lat = geoPoint.latitude;
+      final lng = geoPoint.longitude;
+      final latLng = LatLng(lat, lng);
+
       final marker = Marker(
-        markerId: markerId,
-        position: LatLng(lat, lng),
-        infoWindow: InfoWindow(title: nombre),
-        onTap: () {
-          libreriaSeleccionada = LatLng(lat, lng);
-          setState(() {});
-        },
+        point: latLng,
+        width: 80,
+        height: 80,
+        child: GestureDetector(
+          onTap: () {
+            libreriaSeleccionada = latLng;
+            ScaffoldMessenger.of(context).showSnackBar(
+              SnackBar(content: Text("Librería seleccionada: $nombre")),
+            );
+            setState(() {});
+          },
+          child: const Column(
+            children: [
+              Icon(Icons.location_on, color: Colors.blue, size: 40),
+            ],
+          ),
+        ),
       );
 
-      marcadores[markerId] = marker;
+      nuevosMarcadores.add(marker);
     }
 
-    setState(() {});
+    setState(() {
+      marcadores = nuevosMarcadores;
+    });
   }
 
+// ------------------------------------
+// Rutas (CORREGIDA FINAL)
+// ------------------------------------
   void abrirRuta() {
-    if (libreriaSeleccionada == null) return;
+    if (ubicacionActual == null || libreriaSeleccionada == null) {
+      // Mostrar un error si no hay librería seleccionada
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text("Por favor, selecciona una librería.")),
+      );
+      return;
+    }
 
-    final url =
-        "https://www.google.com/maps/dir/?api=1&destination=${libreriaSeleccionada!.latitude},${libreriaSeleccionada!.longitude}";
+    final lat = libreriaSeleccionada!.latitude;
+    final lng = libreriaSeleccionada!.longitude;
 
-    launchUrl(Uri.parse(url), mode: LaunchMode.externalApplication);
+    // ✅ CORRECCIÓN FINAL: Usamos la URL de intención universal para forzar la navegación.
+    // 'google.navigation:q=' indica a Google Maps que busque la ruta a las coordenadas.
+    final String mapsUrl = 'google.navigation:q=$lat,$lng';
+
+    // El método launchUrl requiere que verifiquemos si la URL es válida
+    if (canLaunchUrl(Uri.parse(mapsUrl) as Uri)) {
+      launchUrl(Uri.parse(mapsUrl) as Uri, mode: LaunchMode.externalApplication)
+          .catchError((error) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text("Error: No se pudo abrir la aplicación de mapas.")),
+        );
+      });
+    } else {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text("Error: No se encontró una aplicación de mapas compatible.")),
+      );
+    }
   }
+  // ------------------------------------
+  // Widget Build (Estructura de la Interfaz)
+  // ------------------------------------
 
   @override
   Widget build(BuildContext context) {
+    if (ubicacionActual == null) {
+      return const Center(child: CircularProgressIndicator(value: null));
+    }
+
     return Scaffold(
       appBar: AppBar(
         title: const Text("Mapa de Librerías"),
         backgroundColor: Colors.blue,
       ),
-
-      body: ubicacionActual == null
-          ? const Center(child: CircularProgressIndicator())
-          : Stack(
+      body: Stack(
         children: [
-          GoogleMap(
-            initialCameraPosition: CameraPosition(
-              target: ubicacionActual!,
-              zoom: 14,
+          // 🛑 WIDGET FLUTTERMAP
+          FlutterMap(
+            mapController: mapaController,
+            options: MapOptions(
+              initialCenter: ubicacionActual!,
+              initialZoom: 14.0,
+              // 🛑 Establecemos la bandera de listo en el callback
+              onMapReady: () {
+                setState(() {
+                  _mapaListo = true;
+                  // Centrar al cargar, solo si no se ha movido
+                  mapaController.move(ubicacionActual!, 14.0);
+                });
+              },
+              interactionOptions: const InteractionOptions(
+                flags: InteractiveFlag.all & ~InteractiveFlag.rotate,
+              ),
             ),
-            markers: Set<Marker>.of(marcadores.values),
-            myLocationEnabled: true,
-            onMapCreated: (controller) => mapaController = controller,
+            children: [
+              // 🛑 CAPA DE TILES (OPENSTREETMAP)
+              TileLayer(
+                urlTemplate: 'https://tile.openstreetmap.org/{z}/{x}/{y}.png',
+                userAgentPackageName: 'com.libros.biblioteca',
+              ),
+
+              // Marcador para la Ubicación Actual del Usuario
+              CircleLayer(
+                circles: [
+                  CircleMarker(
+                    point: ubicacionActual!,
+                    radius: 10,
+                    color: Colors.blue.withOpacity(0.7),
+                    borderColor: Colors.blue,
+                    borderStrokeWidth: 3,
+                    useRadiusInMeter: true,
+                  )
+                ],
+              ),
+
+              // 🛑 CAPA DE MARCADORES DE LIBRERÍAS
+              MarkerLayer(markers: marcadores),
+            ],
           ),
 
           if (libreriaSeleccionada != null)
@@ -165,8 +284,8 @@ class _MapaLibreriasState extends State<MapaLibrerias> {
                 ),
                 onPressed: abrirRuta,
                 child: const Text(
-                  "Seguir ruta",
-                  style: TextStyle(fontSize: 18),
+                  "Seguir ruta (Abrir App de Mapas)",
+                  style: TextStyle(fontSize: 18, color: Colors.white),
                 ),
               ),
             ),
@@ -175,4 +294,3 @@ class _MapaLibreriasState extends State<MapaLibrerias> {
     );
   }
 }
-*/

@@ -9,6 +9,7 @@ class LibroVista {
   final String autor;
   final String imagen;
   final String genero;
+  // CAMBIO 1: El nombre de la librería se obtiene ahora asincrónicamente
   final String nombreLibreria;
   final int stock;
   final String descripcion;
@@ -52,6 +53,8 @@ class _TabLibrosState extends State<TabLibros> {
   List<LibroVista> _todosLosLibros = [];
   List<LibroVista> _librosFiltrados = [];
   bool _isLoading = true;
+  // Mapa para almacenar los nombres de las librerías ya cargados
+  final Map<String, String> _libreriasCache = {};
 
   @override
   void initState() {
@@ -60,25 +63,46 @@ class _TabLibrosState extends State<TabLibros> {
     _searchController.addListener(_filtrarLibros);
   }
 
-  // 🔥 Cargar libros desde Firestore
+  // 🔥 Cargar libros y nombres de librería desde Firestore
   Future<void> _cargarLibrosFirestore() async {
     setState(() => _isLoading = true);
 
-    final snapshot =
+    final librosSnapshot =
     await FirebaseFirestore.instance.collection("libros").get();
 
-    List<LibroVista> temp = snapshot.docs.map((doc) {
-      final data = doc.data();
+    // 1. Obtener todos los IDs de librería únicos
+    final Set<String> libreriaIds = librosSnapshot.docs
+        .map((doc) => doc.data()["idLibreria"] as String?)
+        .where((id) => id != null)
+        .where((id) => !_libreriasCache.containsKey(id)) // Solo cargar IDs no cacheados
+        .toSet()
+        .cast<String>();
 
-      bool esPop = (data["existencias"] as int) < 5;
+    // 2. Cargar los nombres de las librerías faltantes
+    final List<Future<void>> fetchFutures = libreriaIds.map((id) async {
+      final doc = await FirebaseFirestore.instance.collection("librerias").doc(id).get();
+      _libreriasCache[id] = doc.data()?["nombre"] ?? "Librería Desconocida";
+    }).toList();
+
+    await Future.wait(fetchFutures); // Esperar a que se carguen todos los nombres
+
+    // 3. Mapear los documentos a LibroVista, usando el caché
+    List<LibroVista> temp = librosSnapshot.docs.map((doc) {
+      final data = doc.data();
+      final idLibreria = data["idLibreria"] as String?;
+      // Corregido: Asegura que el resultado de (as int?) ?? 0 se evalúe antes de la comparación.
+      final stockValue = (data["existencias"] as int?) ?? 0;
+      bool esPop = stockValue < 5;
 
       return LibroVista(
         id: doc.id,
         titulo: data["nombre"] ?? "Sin nombre",
         autor: data["autor"] ?? "Desconocido",
+        // CAMBIO 2: Asegúrate de que la URL de la imagen sea una cadena válida
         imagen: data["imagen"] ?? "",
         genero: data["genero"] ?? "N/A",
-        nombreLibreria: data["idLibreria"] ?? "Librería",
+        // Usar el nombre de la librería desde el caché
+        nombreLibreria: idLibreria != null ? (_libreriasCache[idLibreria] ?? "Librería Desconocida") : "Librería Desconocida",
         stock: data["existencias"] ?? 0,
         descripcion: data["descripcion"] ?? "",
         esPopular: esPop,
@@ -91,6 +115,16 @@ class _TabLibrosState extends State<TabLibros> {
       _isLoading = false;
     });
   }
+
+  // ... (El resto de _filtrarLibros, _reservarLibro, _mostrarDetalleLibro es el mismo)
+  // ... (El widget build es el mismo, pero ahora libro.nombreLibreria ya tiene el nombre correcto)
+
+  // Nota: Dejé el resto de tu código igual, ya que solo el loading de datos era el problema.
+
+  // Puedes dejar el resto del código sin cambios, ya que los problemas se resuelven
+  // en la función _cargarLibrosFirestore.
+
+// --- INICIO CÓDIGO RESTANTE (Asegúrate de copiar el resto de tu clase _TabLibrosState) ---
 
   void _filtrarLibros() {
     String query = _searchController.text.toLowerCase();

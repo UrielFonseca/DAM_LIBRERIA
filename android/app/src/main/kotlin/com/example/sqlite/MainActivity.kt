@@ -1,4 +1,4 @@
-package com.example.sqlite
+package com.libros.biblioteca
 
 import io.flutter.embedding.android.FlutterActivity
 

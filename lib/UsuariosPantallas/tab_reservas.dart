@@ -9,6 +9,7 @@ class ReservaVista {
   final String autorLibro;
   final String imagenLibro;
   final String nombreLibreria;
+  // Ubicación se puede obtener de la librería (asumiendo que idLibreria es el ID del documento)
   final String ubicacionLibreria;
   final DateTime fechaReserva;
 
@@ -34,6 +35,9 @@ class _TabReservasState extends State<TabReservas> {
   List<ReservaVista> _misReservas = [];
   bool _cargando = true;
 
+  // Cache para los detalles de las librerías
+  final Map<String, Map<String, String>> _libreriasCache = {};
+
   @override
   void initState() {
     super.initState();
@@ -41,43 +45,106 @@ class _TabReservasState extends State<TabReservas> {
   }
 
   // ===============================
-  //      Cargar reservas reales
-  // ===============================
+//      Cargar reservas reales (CORREGIDA)
+// ===============================
   Future<void> _cargarReservas() async {
+    setState(() => _cargando = true);
     final emailUsuario = FirebaseAuth.instance.currentUser!.email;
 
-    final query = await FirebaseFirestore.instance.collection('libros').get();
+    try {
+      final query = await FirebaseFirestore.instance.collection('libros').get();
 
-    List<ReservaVista> temp = [];
+      List<ReservaVista> temp = [];
+      Set<String> libreriaIds = {};
 
-    for (var doc in query.docs) {
-      final data = doc.data();
-      final reservas = data['reservas'] ?? [];
+      // 1. ITERAR LIBROS, ENCONTRAR RESERVAS Y OBTENER IDs DE LIBRERÍA
+      for (var doc in query.docs) {
+        final data = doc.data();
+        // Aseguramos que 'reservas' es una lista
+        final List<dynamic> reservas = data['reservas'] ?? [];
+        final idLibreria = data['idLibreria'] as String?;
 
-      // ¿El usuario reservó este libro?
-      final item = reservas.firstWhere(
-            (r) => r['email'] == emailUsuario,
-        orElse: () => null,
-      );
+        // ✅ CORRECCIÓN: Usamos .where para filtrar la reserva y .isNotEmpty para verificar su existencia
+        final reservaUsuario = reservas
+            .where((r) => r is Map && r['email'] == emailUsuario)
+            .toList();
 
-      if (item != null) {
-        temp.add(ReservaVista(
-          idLibro: doc.id,
-          tituloLibro: data['nombre'],
-          autorLibro: data['autor'],
-          imagenLibro: data['imagen'],
-          nombreLibreria: data['idLibreria'],
-          ubicacionLibreria: data['ubicacion'] ?? "Sin ubicación",
-          fechaReserva: (item['fecha'] as Timestamp).toDate(),
-        ));
+        if (reservaUsuario.isNotEmpty && idLibreria != null) {
+          // Tomamos el primer (y único) elemento
+          final reservaEncontrada = reservaUsuario.first as Map<String, dynamic>;
+          libreriaIds.add(idLibreria);
+
+          // Obtener la fecha, maneja String o Timestamp.
+          dynamic rawFecha = reservaEncontrada['fecha'];
+          DateTime fechaReserva;
+
+          if (rawFecha is String) {
+            fechaReserva = DateTime.parse(rawFecha);
+          } else if (rawFecha is Timestamp) {
+            fechaReserva = rawFecha.toDate();
+          } else {
+            fechaReserva = DateTime.now();
+          }
+
+          temp.add(ReservaVista(
+            idLibro: doc.id,
+            tituloLibro: data['nombre'] ?? 'Título Desconocido',
+            autorLibro: data['autor'] ?? 'Autor Desconocido',
+            imagenLibro: data['imagen'] ?? '',
+            nombreLibreria: idLibreria,
+            ubicacionLibreria: "Cargando...",
+            fechaReserva: fechaReserva,
+          ));
+        }
       }
+
+      // 2. CARGAR DETALLES DE LIBRERÍA
+      final List<Future<void>> fetchFutures = libreriaIds
+          .where((id) => !_libreriasCache.containsKey(id))
+          .map((id) async {
+        final doc =
+        await FirebaseFirestore.instance.collection("librerias").doc(id).get();
+        final libData = doc.data();
+        if (libData != null) {
+          _libreriasCache[id] = {
+            'nombre': libData['nombre'] ?? 'Librería Desconocida',
+            'ubicacion': libData['ubicacion'] ?? 'Sin Ubicación'
+          };
+        } else {
+          _libreriasCache[id] = {
+            'nombre': 'Librería Desconocida',
+            'ubicacion': 'Sin Ubicación'
+          };
+        }
+      }).toList();
+
+      await Future.wait(fetchFutures);
+
+      // 3. ACTUALIZAR LAS RESERVAS CON LOS DETALLES DE LA LIBRERÍA
+      _misReservas = temp.map((reserva) {
+        final detalles = _libreriasCache[reserva.nombreLibreria];
+        return ReservaVista(
+          idLibro: reserva.idLibro,
+          tituloLibro: reserva.tituloLibro,
+          autorLibro: reserva.autorLibro,
+          imagenLibro: reserva.imagenLibro,
+          fechaReserva: reserva.fechaReserva,
+          nombreLibreria: detalles?['nombre'] ?? reserva.nombreLibreria,
+          ubicacionLibreria: detalles?['ubicacion'] ?? "Sin Ubicación",
+        );
+      }).toList();
+
+    } catch (e) {
+      print("Error al cargar reservas: $e");
+      // Puedes agregar manejo de errores visual aquí si lo deseas
     }
 
     setState(() {
-      _misReservas = temp;
       _cargando = false;
     });
   }
+
+  // ... (El resto de _cancelarReserva y build es el mismo)
 
   // ===============================
   //      Cancelar reserva real
@@ -142,6 +209,9 @@ class _TabReservasState extends State<TabReservas> {
             const SizedBox(height: 10),
             ElevatedButton(
               onPressed: () {
+                // Aquí deberías navegar al catálogo de libros (TabLibros)
+                // Dependiendo de tu implementación de tabs, esto podría ser:
+                // DefaultTabController.of(context)?.animateTo(indice_del_catalogo);
                 ScaffoldMessenger.of(context).showSnackBar(
                   const SnackBar(content: Text("Ve al Catálogo para reservar")),
                 );

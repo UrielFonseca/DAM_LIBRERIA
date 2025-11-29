@@ -1,6 +1,5 @@
 import 'package:flutter/material.dart';
 import 'package:firebase_core/firebase_core.dart';
-import 'UsuariosPantallas/mapa_librerias.dart';
 import 'firebase_options.dart';
 
 import 'login.dart';
@@ -28,7 +27,6 @@ class MyApp extends StatelessWidget {
         '/': (_) => const LoginPage(),
         '/admin': (_) => const PantallaAdmin(),
         '/usuario': (_) => const PantallaUsuario(),
-       // '/mapa_librerias': (context) => const MapaLibrerias(),
       },
     );
   }

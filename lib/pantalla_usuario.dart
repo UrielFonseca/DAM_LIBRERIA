@@ -5,7 +5,7 @@ import 'package:firebase_auth/firebase_auth.dart';
 import 'UsuariosPantallas/tab_libros.dart';
 import 'UsuariosPantallas/tab_reservas.dart';
 import 'UsuariosPantallas/tab_lista_espera.dart';
-import 'UsuariosPantallas/tab_mapa.dart';
+import 'UsuariosPantallas/mapa_librerias.dart';
 
 class PantallaUsuario extends StatefulWidget {
   const PantallaUsuario({super.key});
@@ -23,7 +23,7 @@ class _PantallaUsuarioState extends State<PantallaUsuario> {
     const TabLibros(),      // Índice 0
     const TabReservas(),    // Índice 1
     const TabListaEspera(), // Índice 2
-    const TabMapa(),        // Índice 3
+    const MapaLibrerias(),        // Índice 3
   ];
 
   void _cambiarVista(int index, String titulo) {

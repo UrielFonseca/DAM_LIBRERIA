@@ -1,7 +1,5 @@
-<manifest xmlns:android="http://schemas.android.com/apk/res/android">
-
-    <!-- Permisos necesarios -->
-    <uses-permission android:name="android.permission.INTERNET"/>
+<manifest xmlns:android="http://schemas.android.com/apk/res/android"
+    package="com.libros.biblioteca">  <uses-permission android:name="android.permission.INTERNET"/>
     <uses-permission android:name="android.permission.ACCESS_FINE_LOCATION"/>
     <uses-permission android:name="android.permission.ACCESS_COARSE_LOCATION"/>
 
@@ -34,11 +32,6 @@
             android:name="flutterEmbedding"
             android:value="2" />
 
-        <!-- TU API KEY DE GOOGLE MAPS -->
-        <meta-data
-            android:name="com.google.android.geo.API_KEY"
-            android:value="AQUÍ_TU_API_KEY" />
-
     </application>
 
     <queries>
@@ -47,7 +40,6 @@
             <data android:mimeType="text/plain"/>
         </intent>
 
-        <!-- Para abrir Google Maps -->
         <intent>
             <action android:name="android.intent.action.VIEW"/>
             <data android:scheme="https"/>
