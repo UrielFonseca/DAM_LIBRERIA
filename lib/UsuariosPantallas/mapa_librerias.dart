@@ -5,7 +5,6 @@ import 'package:flutter_map/flutter_map.dart';
 import 'package:latlong2/latlong.dart';
 
 import 'package:location/location.dart';
-import 'package:url_launcher/url_launcher.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:flutter_local_notifications/flutter_local_notifications.dart';
 
@@ -19,7 +18,9 @@ class MapaLibrerias extends StatefulWidget {
 class _MapaLibreriasState extends State<MapaLibrerias> {
   // 🛑 USAMOS MapController DE flutter_map
   final MapController mapaController = MapController();
-  final double _proximityThresholdMeters = 1000000.0;
+
+  // ✅ CORREGIDO: Reducido a un valor útil, 100 metros.
+  final double _proximityThresholdMeters = 100.0;
 
   Location location = Location();
   LatLng? ubicacionActual;
@@ -60,10 +61,13 @@ class _MapaLibreriasState extends State<MapaLibrerias> {
       ),
     );
 
+    // ✅ CORRECCIÓN: Usaremos un ID de notificación diferente o añadiremos un flag
+    // para evitar que se muestre repetidamente si ya está cerca.
+    // Por ahora, solo se enviará cada vez que la distancia sea menor al umbral.
     await notifications.show(
       1,
-      'Llegaste',
-      'Has llegado a la librería seleccionada',
+      '¡Alerta de Proximidad!',
+      'Estás a menos de ${_proximityThresholdMeters}m de la librería seleccionada.',
       detalles,
     );
   }
@@ -115,19 +119,18 @@ class _MapaLibreriasState extends State<MapaLibrerias> {
     const R = 6371000.0;
     double dLat = (lat2 - lat1) * (pi / 180);
     double dLng = (lng2 - lng1) * (pi / 180);
-    double a =
-        sin(dLat / 2) * sin(dLat / 2) +
-            cos(lat1 * (pi / 180)) *
-                cos(lat2 * (pi / 180)) *
-                sin(dLng / 2) *
-                sin(dLng / 2);
+    double a = sin(dLat / 2) * sin(dLat / 2) +
+        cos(lat1 * (pi / 180)) *
+            cos(lat2 * (pi / 180)) *
+            sin(dLng / 2) *
+            sin(dLng / 2);
     double c = 2 * atan2(sqrt(a), sqrt(1 - a));
     return R * c;
   }
 
   // ------------------------------------
-// Carga de Librerías y Marcadores (CORREGIDA PARA CAMPO 'Cordenadas')
-// ------------------------------------
+  // Carga de Librerías y Marcadores
+  // ------------------------------------
 
   Future<void> cargarLibreriasFirestore() async {
     final data = await FirebaseFirestore.instance.collection('librerias').get();
@@ -178,39 +181,10 @@ class _MapaLibreriasState extends State<MapaLibrerias> {
     });
   }
 
-// ------------------------------------
-// Rutas (CORREGIDA FINAL)
-// ------------------------------------
-  void abrirRuta() {
-    if (ubicacionActual == null || libreriaSeleccionada == null) {
-      // Mostrar un error si no hay librería seleccionada
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text("Por favor, selecciona una librería.")),
-      );
-      return;
-    }
-
-    final lat = libreriaSeleccionada!.latitude;
-    final lng = libreriaSeleccionada!.longitude;
-
-    // ✅ CORRECCIÓN FINAL: Usamos la URL de intención universal para forzar la navegación.
-    // 'google.navigation:q=' indica a Google Maps que busque la ruta a las coordenadas.
-    final String mapsUrl = 'google.navigation:q=$lat,$lng';
-
-    // El método launchUrl requiere que verifiquemos si la URL es válida
-    if (canLaunchUrl(Uri.parse(mapsUrl) as Uri)) {
-      launchUrl(Uri.parse(mapsUrl) as Uri, mode: LaunchMode.externalApplication)
-          .catchError((error) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text("Error: No se pudo abrir la aplicación de mapas.")),
-        );
-      });
-    } else {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text("Error: No se encontró una aplicación de mapas compatible.")),
-      );
-    }
-  }
+  // ------------------------------------
+  // Rutas (ELIMINADO)
+  // ------------------------------------
+  // ❌ ELIMINADO: Se ha quitado el método `abrirRuta`
   // ------------------------------------
   // Widget Build (Estructura de la Interfaz)
   // ------------------------------------
@@ -269,26 +243,25 @@ class _MapaLibreriasState extends State<MapaLibrerias> {
 
               // 🛑 CAPA DE MARCADORES DE LIBRERÍAS
               MarkerLayer(markers: marcadores),
+
+              // ⚠️ ADICIÓN: Círculo de proximidad de la librería seleccionada
+              if (libreriaSeleccionada != null)
+                CircleLayer(
+                  circles: [
+                    CircleMarker(
+                      point: libreriaSeleccionada!,
+                      radius: _proximityThresholdMeters,
+                      color: Colors.red.withOpacity(0.1),
+                      borderColor: Colors.red,
+                      borderStrokeWidth: 1,
+                      useRadiusInMeter: true,
+                    )
+                  ],
+                ),
             ],
           ),
 
-          if (libreriaSeleccionada != null)
-            Positioned(
-              bottom: 20,
-              left: 20,
-              right: 20,
-              child: ElevatedButton(
-                style: ElevatedButton.styleFrom(
-                  backgroundColor: Colors.green,
-                  padding: const EdgeInsets.all(15),
-                ),
-                onPressed: abrirRuta,
-                child: const Text(
-                  "Seguir ruta (Abrir App de Mapas)",
-                  style: TextStyle(fontSize: 18, color: Colors.white),
-                ),
-              ),
-            ),
+
         ],
       ),
     );
