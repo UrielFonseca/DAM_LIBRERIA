@@ -1,9 +1,7 @@
 import 'dart:math';
 import 'package:flutter/material.dart';
-// 🛑 IMPORTACIONES DE FLUTTER_MAP Y LATLONG2
 import 'package:flutter_map/flutter_map.dart';
 import 'package:latlong2/latlong.dart';
-
 import 'package:location/location.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:flutter_local_notifications/flutter_local_notifications.dart';
@@ -16,19 +14,17 @@ class MapaLibrerias extends StatefulWidget {
 }
 
 class _MapaLibreriasState extends State<MapaLibrerias> {
-  // 🛑 USAMOS MapController DE flutter_map
+  //MapController DE flutter_map
   final MapController mapaController = MapController();
-
-  // ✅ CORREGIDO: Reducido a un valor útil, 100 metros.
   final double _proximityThresholdMeters = 100.0;
 
   Location location = Location();
   LatLng? ubicacionActual;
 
-  // 🛑 USAMOS LIST<MARKER> DE flutter_map
+  //LIST<MARKER> DE flutter_map
   List<Marker> marcadores = [];
   LatLng? libreriaSeleccionada;
-  bool _mapaListo = false; // Bandera para saber si el mapa ha cargado
+  bool _mapaListo = false;
 
   final FlutterLocalNotificationsPlugin notifications =
   FlutterLocalNotificationsPlugin();
@@ -41,10 +37,7 @@ class _MapaLibreriasState extends State<MapaLibrerias> {
     cargarLibreriasFirestore();
   }
 
-  // ------------------------------------
   // Notificaciones y Ubicación
-  // ------------------------------------
-
   Future<void> configurarNotificaciones() async {
     const settings = InitializationSettings(
       android: AndroidInitializationSettings('@mipmap/ic_launcher'),
@@ -61,9 +54,6 @@ class _MapaLibreriasState extends State<MapaLibrerias> {
       ),
     );
 
-    // ✅ CORRECCIÓN: Usaremos un ID de notificación diferente o añadiremos un flag
-    // para evitar que se muestre repetidamente si ya está cerca.
-    // Por ahora, solo se enviará cada vez que la distancia sea menor al umbral.
     await notifications.show(
       1,
       '¡Alerta de Proximidad!',
@@ -72,13 +62,9 @@ class _MapaLibreriasState extends State<MapaLibrerias> {
     );
   }
 
-  // 🛑 CORRECCIÓN: Eliminamos la verificación de 'mapaController.ready' aquí
   Future<void> obtenerUbicacionActual() async {
     LocationData data = await location.getLocation();
-    // 🛑 Usamos LatLng de latlong2
     ubicacionActual = LatLng(data.latitude!, data.longitude!);
-
-    // Movemos el mapa si ya está listo
     if (_mapaListo) {
       mapaController.move(ubicacionActual!, 14);
     }
@@ -100,17 +86,15 @@ class _MapaLibreriasState extends State<MapaLibrerias> {
         );
 
         if (distancia < _proximityThresholdMeters) {
-          print("🔥🔥 NOTIFICACION ENVIADA - Distancia: $distancia"); // <-- Buscar esto
+          print("🔥🔥 NOTIFICACION ENVIADA - Distancia: $distancia");
           mostrarNotificacion();
         }
       }
 
-      // 🛑 CORRECCIÓN: Reemplazamos 'mapaController.ready' por la bandera '_mapaListo'
       if (_mapaListo && ubicacionActual != null) {
-        // Mover el mapa para seguir al usuario
         mapaController.move(ubicacionActual!, mapaController.camera.zoom);
       }
-      setState(() {}); // Es bueno hacer un setState para actualizar la posición del círculo del usuario
+      setState(() {});
     });
   }
 
@@ -128,26 +112,21 @@ class _MapaLibreriasState extends State<MapaLibrerias> {
     return R * c;
   }
 
-  // ------------------------------------
   // Carga de Librerías y Marcadores
-  // ------------------------------------
-
   Future<void> cargarLibreriasFirestore() async {
     final data = await FirebaseFirestore.instance.collection('librerias').get();
 
     List<Marker> nuevosMarcadores = [];
 
     for (var doc in data.docs) {
-      // 🛑 CORRECCIÓN: Usamos el nombre del campo exacto: 'Cordenadas'
+      // Usamos el nombre del campo exacto: 'Cordenadas'
       final GeoPoint? geoPoint = doc['Cordenadas'] as GeoPoint?;
       final nombre = doc['nombre'];
-
       // Si el GeoPoint es nulo
       if (geoPoint == null) {
         print('🚨 WARNING: La librería "${nombre ?? doc.id}" no tiene GeoPoint en el campo Cordenadas.');
         continue;
       }
-
       // Leemos las propiedades 'latitude' y 'longitude' del GeoPoint
       final lat = geoPoint.latitude;
       final lng = geoPoint.longitude;
@@ -175,19 +154,10 @@ class _MapaLibreriasState extends State<MapaLibrerias> {
 
       nuevosMarcadores.add(marker);
     }
-
     setState(() {
       marcadores = nuevosMarcadores;
     });
   }
-
-  // ------------------------------------
-  // Rutas (ELIMINADO)
-  // ------------------------------------
-  // ❌ ELIMINADO: Se ha quitado el método `abrirRuta`
-  // ------------------------------------
-  // Widget Build (Estructura de la Interfaz)
-  // ------------------------------------
 
   @override
   Widget build(BuildContext context) {
@@ -202,17 +172,14 @@ class _MapaLibreriasState extends State<MapaLibrerias> {
       ),
       body: Stack(
         children: [
-          // 🛑 WIDGET FLUTTERMAP
           FlutterMap(
             mapController: mapaController,
             options: MapOptions(
               initialCenter: ubicacionActual!,
               initialZoom: 14.0,
-              // 🛑 Establecemos la bandera de listo en el callback
               onMapReady: () {
                 setState(() {
                   _mapaListo = true;
-                  // Centrar al cargar, solo si no se ha movido
                   mapaController.move(ubicacionActual!, 14.0);
                 });
               },
@@ -221,7 +188,6 @@ class _MapaLibreriasState extends State<MapaLibrerias> {
               ),
             ),
             children: [
-              // 🛑 CAPA DE TILES (OPENSTREETMAP)
               TileLayer(
                 urlTemplate: 'https://tile.openstreetmap.org/{z}/{x}/{y}.png',
                 userAgentPackageName: 'com.libros.biblioteca',
@@ -240,11 +206,9 @@ class _MapaLibreriasState extends State<MapaLibrerias> {
                   )
                 ],
               ),
-
-              // 🛑 CAPA DE MARCADORES DE LIBRERÍAS
+              //CAPA DE MARCADORES DE LIBRERÍAS
               MarkerLayer(markers: marcadores),
-
-              // ⚠️ ADICIÓN: Círculo de proximidad de la librería seleccionada
+              //Círculo de proximidad de la librería seleccionada
               if (libreriaSeleccionada != null)
                 CircleLayer(
                   circles: [
@@ -260,8 +224,6 @@ class _MapaLibreriasState extends State<MapaLibrerias> {
                 ),
             ],
           ),
-
-
         ],
       ),
     );

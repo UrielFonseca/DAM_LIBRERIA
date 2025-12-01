@@ -2,7 +2,7 @@ class Libreria {
   final String id;
   final String nombre;
   final String ubicacion;
-  final List<String> estanterias; // IDs de estanterías
+  final List<String> estanterias;
 
   Libreria({
     required this.id,

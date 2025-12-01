@@ -1,9 +1,8 @@
-import 'dart:async'; // Necesario para StreamSubscription
+import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 
-// Modelo auxiliar para la vista de Lista de Espera (Se mantiene igual)
 class ListaEsperaVista {
   final String idLibro;
   final String tituloLibro;
@@ -36,10 +35,9 @@ class _TabListaEsperaState extends State<TabListaEspera> {
   bool _cargando = true;
   final Map<String, String> _libreriasCache = {};
 
-  // ✅ NUEVOS ESTADOS PARA TIEMPO REAL
   StreamSubscription<QuerySnapshot>? _librosSubscription;
   final Map<String, int> _previousPositions = {};
-  String? _currentUserEmail; // Almacenamos el email una sola vez
+  String? _currentUserEmail;
 
   @override
   void initState() {
@@ -49,27 +47,19 @@ class _TabListaEsperaState extends State<TabListaEspera> {
       _iniciarListenerReservas();
     } else {
       setState(() => _cargando = false);
-      // Podrías añadir un error o mensaje si no hay email
     }
   }
 
   @override
   void dispose() {
-    // ✅ Cancelar la suscripción al salir del widget
     _librosSubscription?.cancel();
     super.dispose();
   }
 
-  // ===================================
-  //   1. INICIAR EL LISTENER DE FIRESTORE (Stream)
-  // ===================================
   void _iniciarListenerReservas() {
     setState(() => _cargando = true);
-
-    // Escucha continuamente los cambios en la colección 'libros'
     _librosSubscription = FirebaseFirestore.instance.collection('libros').snapshots().listen(
           (querySnapshot) {
-        // Llama a la función de procesamiento con los nuevos datos
         _procesarSnapshotReservas(querySnapshot);
       },
       onError: (error) {
@@ -79,10 +69,6 @@ class _TabListaEsperaState extends State<TabListaEspera> {
     );
   }
 
-
-  // ===================================
-  //   2. PROCESAR Y DETECTAR NOTIFICACIÓN (Lógica del Stream)
-  // ===================================
   Future<void> _procesarSnapshotReservas(QuerySnapshot querySnapshot) async {
     final emailUsuario = _currentUserEmail;
     if (emailUsuario == null) return;
@@ -91,7 +77,7 @@ class _TabListaEsperaState extends State<TabListaEspera> {
     Set<String> libreriaIds = {};
 
     for (var doc in querySnapshot.docs) {
-      final data = doc.data() as Map<String, dynamic>; // Casteo seguro
+      final data = doc.data() as Map<String, dynamic>;
       final List<dynamic> reservas = data['reservas'] ?? [];
       final idLibreria = data['idLibreria'] as String?;
 
@@ -105,7 +91,7 @@ class _TabListaEsperaState extends State<TabListaEspera> {
         dynamic rawFecha = reservaEncontrada['fecha'];
         DateTime fechaSolicitud;
 
-        // Lógica de manejo de fecha
+        //manejo de fecha
         if (rawFecha is String) {
           try {
             fechaSolicitud = DateTime.parse(rawFecha);
@@ -118,11 +104,9 @@ class _TabListaEsperaState extends State<TabListaEspera> {
           fechaSolicitud = DateTime.now();
         }
 
-        // 🛑 DETECCIÓN DE CAMBIO DE TURNO
-        final previousPosition = _previousPositions[doc.id] ?? posicion + 1; // Usamos un valor seguro y alto si es la primera vez
+        final previousPosition = _previousPositions[doc.id] ?? posicion + 1;
 
         if (previousPosition > 1 && posicion == 1) {
-          // Notificación local (Snack Bar) cuando detectamos que el usuario pasó a la posición 1
           _mostrarNotificacionLocal(
               doc.id,
               data['nombre'] ?? 'Título Desconocido',
@@ -130,26 +114,24 @@ class _TabListaEsperaState extends State<TabListaEspera> {
           );
         }
 
-        // ✅ ACTUALIZAR EL HISTORIAL DE POSICIONES
+        //ACTUALIZAR EL HISTORIAL DE POSICIONES
         _previousPositions[doc.id] = posicion;
-
 
         temp.add(ListaEsperaVista(
           idLibro: doc.id,
           tituloLibro: data['nombre'] ?? 'Título Desconocido',
           autorLibro: data['autor'] ?? 'Autor Desconocido',
           imagenLibro: data['imagen'] ?? '',
-          nombreLibreria: idLibreria, // Temporalmente el ID
+          nombreLibreria: idLibreria,
           posicionEnPila: posicion,
           fechaSolicitud: fechaSolicitud,
         ));
       } else {
-        // Si el usuario ya no está en la pila, limpiamos su historial
         _previousPositions.remove(doc.id);
       }
     }
 
-    // 3. CARGAR Y ACTUALIZAR NOMBRES DE LIBRERÍA (Lógica optimizada)
+    //CARGAR Y ACTUALIZAR NOMBRES DE LIBRERÍA
     final List<Future<void>> fetchFutures = libreriaIds
         .where((id) => !_libreriasCache.containsKey(id))
         .map((id) async {
@@ -159,7 +141,7 @@ class _TabListaEsperaState extends State<TabListaEspera> {
 
     await Future.wait(fetchFutures);
 
-    // 4. ACTUALIZAR ESTADO
+    //ACTUALIZAR ESTADO
     _miListaEspera = temp.map((reserva) {
       return ListaEsperaVista(
         idLibro: reserva.idLibro,
@@ -179,13 +161,9 @@ class _TabListaEsperaState extends State<TabListaEspera> {
     }
   }
 
-  // ===================================
-  //   3. FUNCIÓN DE NOTIFICACIÓN LOCAL
-  // ===================================
+  //FUNCIÓN DE NOTIFICACIÓN LOCAL
   void _mostrarNotificacionLocal(String idLibro, String titulo, String idLibreria) {
-    // Busca el nombre real en el caché para la notificación
     final nombreLibreria = _libreriasCache[idLibreria] ?? "una de tus librerías";
-
     if (mounted) {
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
@@ -197,9 +175,7 @@ class _TabListaEsperaState extends State<TabListaEspera> {
     }
   }
 
-  // ===================================
-  //   4. Función para salir de la lista de espera (Firestore)
-  // ===================================
+  //Función para salir de la lista de espera
   void _salirDeLaPila(String idLibro) {
     showDialog(
       context: context,
@@ -227,7 +203,6 @@ class _TabListaEsperaState extends State<TabListaEspera> {
               ScaffoldMessenger.of(context).showSnackBar(
                 const SnackBar(content: Text("Has salido de la lista de espera")),
               );
-              // El listener (Stream) se encargará de actualizar la lista automáticamente.
             },
             child: const Text("Sí, salir", style: TextStyle(color: Colors.red)),
           ),
@@ -236,16 +211,12 @@ class _TabListaEsperaState extends State<TabListaEspera> {
     );
   }
 
-  // ===================================
-  //   5. Widget Build (Se mantiene casi igual)
-  // ===================================
+  //Widget Build
   @override
   Widget build(BuildContext context) {
-    // 🛑 Manejo del estado de carga
     if (_cargando) {
       return const Center(child: CircularProgressIndicator());
     }
-
     if (_miListaEspera.isEmpty) {
       return Center(
         child: Column(
@@ -276,7 +247,6 @@ class _TabListaEsperaState extends State<TabListaEspera> {
       itemCount: _miListaEspera.length,
       itemBuilder: (context, index) {
         final solicitud = _miListaEspera[index];
-        // El resto del diseño del ListTile se mantiene igual
         return Container(
           margin: const EdgeInsets.only(bottom: 15),
           decoration: BoxDecoration(
@@ -293,7 +263,6 @@ class _TabListaEsperaState extends State<TabListaEspera> {
           ),
           child: Column(
             children: [
-              // Encabezado visual de estado (Tope de pila o En espera)
               Container(
                 width: double.infinity,
                 padding: const EdgeInsets.symmetric(vertical: 8, horizontal: 15),
@@ -340,7 +309,6 @@ class _TabListaEsperaState extends State<TabListaEspera> {
                             errorBuilder: (c, o, s) => Container(width: 70, height: 100, color: Colors.grey[300]),
                           ),
                         ),
-                        // Icono de pila sobre la imagen
                         if (solicitud.posicionEnPila > 1)
                           Container(
                             padding: const EdgeInsets.all(4),

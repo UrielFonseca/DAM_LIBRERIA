@@ -1,6 +1,5 @@
 import 'package:sqflite/sqflite.dart';
 import 'package:path/path.dart';
-// Importamos solo los modelos necesarios
 import '../models/ModeloLibro.dart';
 import '../models/ModeloReserva.dart';
 
@@ -11,8 +10,8 @@ class UsuariosBD {
       join(await getDatabasesPath(), "usuarios_biblioteca.db"),
       version: 1,
       onCreate: (db, version) async {
-        // 1. TABLA LIBROS
-        // Agregamos 'idLibreria' para diferenciar el stock de cada biblioteca
+        //TABLA LIBROS
+        //Agregamos 'idLibreria' para diferenciar el stock de cada biblioteca
         await db.execute('''
           CREATE TABLE LIBROS(
             id TEXT PRIMARY KEY, 
@@ -25,8 +24,7 @@ class UsuariosBD {
             idLibreria TEXT 
           )
         ''');
-
-        // 2. TABLA RESERVAS
+        //TABLA RESERVAS
         await db.execute('''
           CREATE TABLE RESERVAS(
             id TEXT PRIMARY KEY,
@@ -36,9 +34,7 @@ class UsuariosBD {
             fecha TEXT
           )
         ''');
-
-        // 3. TABLA LISTA_ESPERA (PILA LIFO)
-        // Sin modelo, datos crudos para manejar la cola
+        //TABLA LISTA_ESPERA (PILA LIFO)
         await db.execute('''
           CREATE TABLE LISTA_ESPERA(
             id TEXT PRIMARY KEY,
@@ -52,23 +48,17 @@ class UsuariosBD {
       },
     );
   }
-
-  // ==========================================
-  //                 CRUD LIBROS
-  // ==========================================
-
-  // Insertar libro (Útil para cargar datos iniciales)
+  //LIBROS
+  // Insertar libro
   static Future<int> insertarLibro(Libro libro, String idLibreria) async {
     Database db = await _abrirDB();
     Map<String, dynamic> datos = libro.toMap();
     datos['idLibreria'] = idLibreria;
-    // Aseguramos que el ID del modelo se guarde
     datos['id'] = libro.id;
-
     return db.insert("LIBROS", datos, conflictAlgorithm: ConflictAlgorithm.replace);
   }
 
-  // Obtener libros (Soporta filtro por nombre para la barra de búsqueda)
+  // Obtener libros
   static Future<List<Map<String, dynamic>>> obtenerLibros({String query = ''}) async {
     Database db = await _abrirDB();
     if (query.isNotEmpty) {
@@ -78,7 +68,7 @@ class UsuariosBD {
     }
   }
 
-  // Actualizar Stock (Restar al reservar)
+  // Actualizar Stock
   static Future<int> actualizarStock(String idLibro, int nuevoStock) async {
     Database db = await _abrirDB();
     return db.update("LIBROS",
@@ -88,14 +78,10 @@ class UsuariosBD {
     );
   }
 
-  // ==========================================
-  //                 CRUD RESERVAS
-  // ==========================================
-
+  //RESERVAS
   static Future<int> insertarReserva(Reserva r) async {
     Database db = await _abrirDB();
     Map<String, dynamic> datos = r.toMap();
-    // SQLite guarda fechas como texto ISO8601
     datos['fecha'] = r.fecha.toIso8601String();
     return db.insert("RESERVAS", datos, conflictAlgorithm: ConflictAlgorithm.replace);
   }
@@ -124,10 +110,7 @@ class UsuariosBD {
     return db.delete("RESERVAS", where: "id = ?", whereArgs: [idReserva]);
   }
 
-  // ==========================================
-  //       MANEJO DE PILA (LISTA DE ESPERA)
-  // ==========================================
-
+  //(LISTA DE ESPERA)
   // 1. PUSH: Agregar a la pila
   static Future<int> pushPila({
     required String idUsuario,
@@ -137,7 +120,7 @@ class UsuariosBD {
     Database db = await _abrirDB();
 
     Map<String, dynamic> itemPila = {
-      'id': DateTime.now().millisecondsSinceEpoch.toString(), // ID único simple
+      'id': DateTime.now().millisecondsSinceEpoch.toString(),
       'idUsuario': idUsuario,
       'idLibro': idLibro,
       'idLibreria': idLibreria,
@@ -148,11 +131,10 @@ class UsuariosBD {
     return db.insert("LISTA_ESPERA", itemPila, conflictAlgorithm: ConflictAlgorithm.replace);
   }
 
-  // 2. PEEK/LIST: Ver mi pila (Orden LIFO por fecha descendente)
+  //Ver mi pila
   static Future<List<Map<String, dynamic>>> obtenerPila(String idUsuario) async {
     Database db = await _abrirDB();
-
-    // Hacemos un JOIN para traer el nombre del libro y la imagen automáticamente
+    // JOIN para traer el nombre del libro y la imagen
     return db.rawQuery('''
       SELECT 
         le.id as idSolicitud,
@@ -169,7 +151,7 @@ class UsuariosBD {
     ''', [idUsuario]);
   }
 
-  // 3. POP/REMOVE: Salir de la pila
+  //Salir de la pila
   static Future<int> eliminarDePila(String idSolicitud) async {
     Database db = await _abrirDB();
     return db.delete("LISTA_ESPERA", where: "id = ?", whereArgs: [idSolicitud]);

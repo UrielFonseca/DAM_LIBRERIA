@@ -20,9 +20,7 @@ class DBHelper {
 
   static Future<int> insertUser(String name) async {
     final db = await getDatabase();
-
     return db.insert('users', {'name': name});
-
   }
 
   static Future<List<Map<String, dynamic>>> getUsers() async {

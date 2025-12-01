@@ -2,14 +2,12 @@ import 'package:flutter/material.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 
-// Modelo auxiliar para la vista
 class LibroVista {
   final String id;
   final String titulo;
   final String autor;
   final String imagen;
   final String genero;
-  // CAMBIO 1: El nombre de la librería se obtiene ahora asincrónicamente
   final String nombreLibreria;
   final int stock;
   final String descripcion;
@@ -63,34 +61,33 @@ class _TabLibrosState extends State<TabLibros> {
     _searchController.addListener(_filtrarLibros);
   }
 
-  // 🔥 Cargar libros y nombres de librería desde Firestore
+  //Cargar libros y nombres de librería desde Firestore
   Future<void> _cargarLibrosFirestore() async {
     setState(() => _isLoading = true);
 
     final librosSnapshot =
     await FirebaseFirestore.instance.collection("libros").get();
 
-    // 1. Obtener todos los IDs de librería únicos
+    //Obtener todos los IDs de librería únicos
     final Set<String> libreriaIds = librosSnapshot.docs
         .map((doc) => doc.data()["idLibreria"] as String?)
         .where((id) => id != null)
-        .where((id) => !_libreriasCache.containsKey(id)) // Solo cargar IDs no cacheados
+        .where((id) => !_libreriasCache.containsKey(id))
         .toSet()
         .cast<String>();
 
-    // 2. Cargar los nombres de las librerías faltantes
+    //nombres de las librerías faltantes
     final List<Future<void>> fetchFutures = libreriaIds.map((id) async {
       final doc = await FirebaseFirestore.instance.collection("librerias").doc(id).get();
       _libreriasCache[id] = doc.data()?["nombre"] ?? "Librería Desconocida";
     }).toList();
 
-    await Future.wait(fetchFutures); // Esperar a que se carguen todos los nombres
+    await Future.wait(fetchFutures);
 
-    // 3. Mapear los documentos a LibroVista, usando el caché
+    //Mapear los documentos a LibroVista, usando el caché
     List<LibroVista> temp = librosSnapshot.docs.map((doc) {
       final data = doc.data();
       final idLibreria = data["idLibreria"] as String?;
-      // Corregido: Asegura que el resultado de (as int?) ?? 0 se evalúe antes de la comparación.
       final stockValue = (data["existencias"] as int?) ?? 0;
       bool esPop = stockValue < 5;
 
@@ -98,17 +95,14 @@ class _TabLibrosState extends State<TabLibros> {
         id: doc.id,
         titulo: data["nombre"] ?? "Sin nombre",
         autor: data["autor"] ?? "Desconocido",
-        // CAMBIO 2: Asegúrate de que la URL de la imagen sea una cadena válida
         imagen: data["imagen"] ?? "",
         genero: data["genero"] ?? "N/A",
-        // Usar el nombre de la librería desde el caché
         nombreLibreria: idLibreria != null ? (_libreriasCache[idLibreria] ?? "Librería Desconocida") : "Librería Desconocida",
         stock: data["existencias"] ?? 0,
         descripcion: data["descripcion"] ?? "",
         esPopular: esPop,
       );
     }).toList();
-
     setState(() {
       _todosLosLibros = temp;
       _librosFiltrados = temp;
@@ -116,33 +110,19 @@ class _TabLibrosState extends State<TabLibros> {
     });
   }
 
-  // ... (El resto de _filtrarLibros, _reservarLibro, _mostrarDetalleLibro es el mismo)
-  // ... (El widget build es el mismo, pero ahora libro.nombreLibreria ya tiene el nombre correcto)
-
-  // Nota: Dejé el resto de tu código igual, ya que solo el loading de datos era el problema.
-
-  // Puedes dejar el resto del código sin cambios, ya que los problemas se resuelven
-  // en la función _cargarLibrosFirestore.
-
-// --- INICIO CÓDIGO RESTANTE (Asegúrate de copiar el resto de tu clase _TabLibrosState) ---
-
   void _filtrarLibros() {
     String query = _searchController.text.toLowerCase();
-
     setState(() {
       _librosFiltrados = _todosLosLibros.where((libro) {
         final coincideNombre =
         libro.titulo.toLowerCase().contains(query);
-
         final coincideGenero = _generoSeleccionado == "Todos" ||
             libro.genero == _generoSeleccionado;
-
         return coincideNombre && coincideGenero;
       }).toList();
     });
   }
 
-  // ⬇ FUNCIONALIDAD DE RESERVA
   Future<void> _reservarLibro(String libroId, String userEmail) async {
     final ref = FirebaseFirestore.instance.collection("libros").doc(libroId);
 
@@ -164,18 +144,15 @@ class _TabLibrosState extends State<TabLibros> {
         "email": userEmail,
         "fecha": DateTime.now().toIso8601String(),
       });
-
       transaction.update(ref, {"reservas": reservas});
     });
 
     ScaffoldMessenger.of(context).showSnackBar(
       const SnackBar(content: Text("Libro reservado correctamente")),
     );
-
     Navigator.pop(context);
   }
 
-  // ⬇ DETALLES
   void _mostrarDetalleLibro(BuildContext context, LibroVista libro) {
     final userEmail = FirebaseAuth.instance.currentUser!.email;
 
@@ -281,8 +258,6 @@ class _TabLibrosState extends State<TabLibros> {
                                 height: 1.5,
                                 color: Colors.black87)),
                         const SizedBox(height: 40),
-
-                        // ⬇ ⬇ ⬇ BOTÓN ARREGLADO (AQUÍ ESTABA TU FALLO)
                         if (!yaReservado)
                           ElevatedButton(
                             onPressed: () =>

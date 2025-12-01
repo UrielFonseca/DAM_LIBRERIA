@@ -2,14 +2,12 @@ import 'package:flutter/material.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 
-// Modelo para mostrar reservas reales
 class ReservaVista {
   final String idLibro;
   final String tituloLibro;
   final String autorLibro;
   final String imagenLibro;
   final String nombreLibreria;
-  // Ubicación se puede obtener de la librería (asumiendo que idLibreria es el ID del documento)
   final String ubicacionLibreria;
   final DateTime fechaReserva;
 
@@ -34,8 +32,6 @@ class TabReservas extends StatefulWidget {
 class _TabReservasState extends State<TabReservas> {
   List<ReservaVista> _misReservas = [];
   bool _cargando = true;
-
-  // Cache para los detalles de las librerías
   final Map<String, Map<String, String>> _libreriasCache = {};
 
   @override
@@ -44,33 +40,25 @@ class _TabReservasState extends State<TabReservas> {
     _cargarReservas();
   }
 
-  // ===============================
-//      Cargar reservas reales (CORREGIDA)
-// ===============================
+  //Cargar reservas reales
   Future<void> _cargarReservas() async {
     setState(() => _cargando = true);
     final emailUsuario = FirebaseAuth.instance.currentUser!.email;
-
     try {
       final query = await FirebaseFirestore.instance.collection('libros').get();
-
       List<ReservaVista> temp = [];
       Set<String> libreriaIds = {};
 
-      // 1. ITERAR LIBROS, ENCONTRAR RESERVAS Y OBTENER IDs DE LIBRERÍA
+      //ITERAR LIBROS, ENCONTRAR RESERVAS Y OBTENER IDs DE LIBRERÍA
       for (var doc in query.docs) {
         final data = doc.data();
-        // Aseguramos que 'reservas' es una lista
         final List<dynamic> reservas = data['reservas'] ?? [];
         final idLibreria = data['idLibreria'] as String?;
-
-        // ✅ CORRECCIÓN: Usamos .where para filtrar la reserva y .isNotEmpty para verificar su existencia
         final reservaUsuario = reservas
             .where((r) => r is Map && r['email'] == emailUsuario)
             .toList();
 
         if (reservaUsuario.isNotEmpty && idLibreria != null) {
-          // Tomamos el primer (y único) elemento
           final reservaEncontrada = reservaUsuario.first as Map<String, dynamic>;
           libreriaIds.add(idLibreria);
 
@@ -98,7 +86,7 @@ class _TabReservasState extends State<TabReservas> {
         }
       }
 
-      // 2. CARGAR DETALLES DE LIBRERÍA
+      //CARGAR DETALLES DE LIBRERÍA
       final List<Future<void>> fetchFutures = libreriaIds
           .where((id) => !_libreriasCache.containsKey(id))
           .map((id) async {
@@ -120,7 +108,7 @@ class _TabReservasState extends State<TabReservas> {
 
       await Future.wait(fetchFutures);
 
-      // 3. ACTUALIZAR LAS RESERVAS CON LOS DETALLES DE LA LIBRERÍA
+      //ACTUALIZAR LAS RESERVAS CON LOS DETALLES DE LA LIBRERÍA
       _misReservas = temp.map((reserva) {
         final detalles = _libreriasCache[reserva.nombreLibreria];
         return ReservaVista(
@@ -133,22 +121,15 @@ class _TabReservasState extends State<TabReservas> {
           ubicacionLibreria: detalles?['ubicacion'] ?? "Sin Ubicación",
         );
       }).toList();
-
     } catch (e) {
       print("Error al cargar reservas: $e");
-      // Puedes agregar manejo de errores visual aquí si lo deseas
     }
-
     setState(() {
       _cargando = false;
     });
   }
 
-  // ... (El resto de _cancelarReserva y build es el mismo)
-
-  // ===============================
-  //      Cancelar reserva real
-  // ===============================
+  //Cancelar reserva
   void _cancelarReserva(String idLibro) {
     showDialog(
       context: context,
@@ -163,24 +144,16 @@ class _TabReservasState extends State<TabReservas> {
           TextButton(
             onPressed: () async {
               final email = FirebaseAuth.instance.currentUser!.email;
-
-              final docRef =
-              FirebaseFirestore.instance.collection('libros').doc(idLibro);
-
+              final docRef = FirebaseFirestore.instance.collection('libros').doc(idLibro);
               final doc = await docRef.get();
               List reservas = doc['reservas'] ?? [];
-
               reservas.removeWhere((r) => r['email'] == email);
-
               await docRef.update({'reservas': reservas});
-
               Navigator.pop(ctx);
-
               ScaffoldMessenger.of(context).showSnackBar(
                 const SnackBar(content: Text("Reserva cancelada")),
               );
-
-              _cargarReservas(); // recargar lista
+              _cargarReservas();
             },
             child: const Text("Sí, cancelar", style: TextStyle(color: Colors.red)),
           ),
@@ -209,9 +182,6 @@ class _TabReservasState extends State<TabReservas> {
             const SizedBox(height: 10),
             ElevatedButton(
               onPressed: () {
-                // Aquí deberías navegar al catálogo de libros (TabLibros)
-                // Dependiendo de tu implementación de tabs, esto podría ser:
-                // DefaultTabController.of(context)?.animateTo(indice_del_catalogo);
                 ScaffoldMessenger.of(context).showSnackBar(
                   const SnackBar(content: Text("Ve al Catálogo para reservar")),
                 );
@@ -285,11 +255,7 @@ class _TabReservasState extends State<TabReservas> {
                         ],
                       ),
 
-                      Text(
-                        reserva.autorLibro,
-                        style:
-                        TextStyle(color: Colors.grey[600], fontSize: 13),
-                      ),
+                      Text(reserva.autorLibro, style: TextStyle(color: Colors.grey[600], fontSize: 13),),
                       const SizedBox(height: 10),
 
                       // Librería
@@ -323,9 +289,7 @@ class _TabReservasState extends State<TabReservas> {
                             const SizedBox(height: 2),
                             Text(
                               reserva.ubicacionLibreria,
-                              style: TextStyle(
-                                  fontSize: 11, color: Colors.blue[800]),
-                              maxLines: 1,
+                              style: TextStyle( fontSize: 11, color: Colors.blue[800]), maxLines: 1,
                               overflow: TextOverflow.ellipsis,
                             ),
                           ],
@@ -336,8 +300,7 @@ class _TabReservasState extends State<TabReservas> {
                       // Fecha
                       Text(
                         "Reservado el ${reserva.fechaReserva.day}/${reserva.fechaReserva.month}/${reserva.fechaReserva.year}",
-                        style: TextStyle(
-                            fontSize: 11, color: Colors.grey[600]),
+                        style: TextStyle(fontSize: 11, color: Colors.grey[600]),
                       ),
                     ],
                   ),

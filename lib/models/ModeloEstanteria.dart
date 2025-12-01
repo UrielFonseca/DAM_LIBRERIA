@@ -1,7 +1,7 @@
 class Estanteria {
   final String id;
   final String genero;
-  final List<String> libros; // IDs de libros
+  final List<String> libros;
 
   Estanteria({
     required this.id,

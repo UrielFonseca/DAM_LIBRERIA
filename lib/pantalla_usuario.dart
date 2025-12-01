@@ -1,7 +1,5 @@
 import 'package:flutter/material.dart';
 import 'package:firebase_auth/firebase_auth.dart';
-
-// IMPORTS ACTUALIZADOS A LA CARPETA 'UsuariosPantallas'
 import 'UsuariosPantallas/tab_libros.dart';
 import 'UsuariosPantallas/tab_reservas.dart';
 import 'UsuariosPantallas/tab_lista_espera.dart';
@@ -18,7 +16,7 @@ class _PantallaUsuarioState extends State<PantallaUsuario> {
   int _selectedIndex = 0;
   String _titulo = "Catálogo de Libros";
 
-  // Lista de las vistas (Tabs)
+  // Lista de las vistas
   final List<Widget> _vistas = [
     const TabLibros(),      // Índice 0
     const TabReservas(),    // Índice 1
@@ -31,7 +29,7 @@ class _PantallaUsuarioState extends State<PantallaUsuario> {
       _selectedIndex = index;
       _titulo = titulo;
     });
-    Navigator.pop(context); // Cierra el Drawer automáticamente
+    Navigator.pop(context);
   }
 
   @override
@@ -42,7 +40,7 @@ class _PantallaUsuarioState extends State<PantallaUsuario> {
         backgroundColor: Colors.blue,
       ),
 
-      // MENÚ LATERAL (DRAWER)
+      // MENÚ LATERAL
       drawer: Drawer(
         child: ListView(
           padding: EdgeInsets.zero,
@@ -61,42 +59,36 @@ class _PantallaUsuarioState extends State<PantallaUsuario> {
                 ],
               ),
             ),
-
-            // 1. Libros
+            //Libros
             ListTile(
               leading: const Icon(Icons.library_books),
               title: const Text("Catálogo de Libros"),
               selected: _selectedIndex == 0,
               onTap: () => _cambiarVista(0, "Catálogo de Libros"),
             ),
-
-            // 2. Reservas
+            //Reservas
             ListTile(
               leading: const Icon(Icons.bookmark),
               title: const Text("Mis Reservas"),
               selected: _selectedIndex == 1,
               onTap: () => _cambiarVista(1, "Mis Reservas"),
             ),
-
-            // 3. Lista de Espera (Pila)
+            //Lista de Espera
             ListTile(
               leading: const Icon(Icons.layers),
               title: const Text("Lista de Espera"),
               selected: _selectedIndex == 2,
               onTap: () => _cambiarVista(2, "Lista de Espera"),
             ),
-
-            // 4. Mapa
+            //Mapa
             ListTile(
               leading: const Icon(Icons.map),
               title: const Text("Mapa de Librerías"),
               selected: _selectedIndex == 3,
               onTap: () => _cambiarVista(3, "Mapa de Librerías"),
             ),
-
             const Divider(),
-
-            // 5. Logout
+            //Logout
             ListTile(
               leading: const Icon(Icons.exit_to_app, color: Colors.red),
               title: const Text("Cerrar Sesión", style: TextStyle(color: Colors.red)),
@@ -110,8 +102,6 @@ class _PantallaUsuarioState extends State<PantallaUsuario> {
           ],
         ),
       ),
-
-      // CUERPO DINÁMICO
       body: _vistas[_selectedIndex],
     );
   }

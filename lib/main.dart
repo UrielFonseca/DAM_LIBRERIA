@@ -1,11 +1,9 @@
 import 'package:flutter/material.dart';
 import 'package:firebase_core/firebase_core.dart';
 import 'firebase_options.dart';
-
 import 'login.dart';
 import 'pantalla_admin.dart';
 import 'pantalla_usuario.dart';
-
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
